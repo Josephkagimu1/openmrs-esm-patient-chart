@@ -36,7 +36,7 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
   const isTablet = useLayoutType() === 'tablet';
   const { t } = useTranslation();
   const { immunizationsConceptSet } = useImmunizationsConceptSet(config);
-  const { mutate } = useImmunizations(patientUuid);
+  const { data: existingImmunizations, mutate } = useImmunizations(patientUuid);
 
   const [immunizationToEditMeta, setImmunizationToEditMeta] = useState<{
     immunizationObsUuid: string;
@@ -189,10 +189,42 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
       mutate,
     ],
   );
+
+  const wrappedSubmit = useCallback(
+    (e: React.FormEvent) => {
+      e.preventDefault();
+
+      const data = formProps.getValues();
+
+      const isDuplicate = existingImmunizations?.some((group) => {
+        if (group.vaccineUuid !== data.vaccineUuid) return false;
+        return group.existingDoses.some(
+          (dose) =>
+            Number(dose.doseNumber) === Number(data.doseNumber) &&
+            dose.immunizationObsUuid !== immunizationToEditMeta?.immunizationObsUuid,
+        );
+      });
+
+      if (isDuplicate) {
+        showSnackbar({
+          title: t('duplicateDoseError', 'Dose {{dose}} has already been recorded for this vaccine', {
+            dose: data.doseNumber,
+          }),
+          kind: 'warning',
+          isLowContrast: true,
+        });
+        return;
+      }
+
+      handleSubmit(onSubmit)(e);
+    },
+    [existingImmunizations, immunizationToEditMeta, formProps, handleSubmit, onSubmit, t],
+  );
+
   return (
     <Workspace2 title={t('immunizationWorkspaceTitle', 'Immunization')} hasUnsavedChanges={isDirty}>
       <FormProvider {...formProps}>
-        <Form className={styles.form} onSubmit={handleSubmit(onSubmit)}>
+        <Form className={styles.form} onSubmit={wrappedSubmit}>
           <Stack gap={5} className={styles.container}>
             <ResponsiveWrapper>
               <Controller
