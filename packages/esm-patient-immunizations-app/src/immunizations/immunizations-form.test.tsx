@@ -18,6 +18,7 @@ import { mockPatient } from 'tools';
 import { savePatientImmunization } from './immunizations.resource';
 import { FHIR_NEXT_DOSE_DATE_EXTENSION_URL } from './immunization-mapper';
 import ImmunizationsForm from './immunizations-form.workspace';
+import { useImmunizations } from '../hooks/useImmunizations';
 
 const mockCloseWorkspace = jest.fn();
 const mockCloseWorkspaceWithSavedChanges = jest.fn();
@@ -28,6 +29,12 @@ const mockUseConfig = jest.mocked<() => ImmunizationConfigObject>(useConfig);
 const mockUseSession = jest.mocked(useSession);
 const mockToOmrsIsoString = jest.mocked(toOmrsIsoString);
 const mockToDateObjectStrict = jest.mocked(toDateObjectStrict);
+
+jest.mock('../hooks/useImmunizations', () => ({
+  useImmunizations: jest.fn(),
+}));
+
+const mockUseImmunizations = jest.mocked(useImmunizations);
 
 jest.mock('../hooks/useImmunizationsConceptSet', () => ({
   useImmunizationsConceptSet: jest.fn(() => ({
@@ -109,6 +116,13 @@ describe('Immunizations Form', () => {
   beforeEach(() => {
     mockToOmrsIsoString.mockReturnValue(mockVaccinationDate.toISOString());
     mockToDateObjectStrict.mockImplementation((dateString) => dayjs(dateString, isoFormat).toDate());
+    mockUseImmunizations.mockReturnValue({
+      data: [],
+      isLoading: false,
+      error: null,
+      isValidating: false,
+      mutate: jest.fn(),
+    });
   });
 
   it('should render ImmunizationsForm component', async () => {
@@ -456,6 +470,60 @@ describe('Immunizations Form', () => {
       }),
       immunizationToEdit.immunizationId,
       expect.any(AbortController),
+    );
+  });
+
+  it('should prevent saving a duplicate dose for the same vaccine', async () => {
+    const user = userEvent.setup();
+
+    mockUseImmunizations.mockReturnValue({
+      data: [
+        {
+          vaccineUuid: '782AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+          vaccineName: 'Hepatitis B vaccination',
+          existingDoses: [
+            {
+              immunizationObsUuid: 'existing-uuid',
+              occurrenceDateTime: '2026-04-24T00:00:00.000Z',
+              doseNumber: 1,
+              note: [],
+              visitUuid: 'visit-uuid',
+              expirationDate: null,
+              nextDoseDate: null,
+              lotNumber: '',
+              manufacturer: '',
+            },
+          ],
+        },
+      ],
+      isLoading: false,
+      error: null,
+      isValidating: false,
+      mutate: jest.fn(),
+    });
+
+    render(<ImmunizationsForm {...testProps} />);
+
+    // Select the same vaccine that already has dose 1
+    const vaccineField = screen.getByRole('combobox', { name: /Immunization/i });
+    await selectOption(vaccineField, 'Hepatitis B vaccination');
+
+    // Enter the same dose number
+    const doseField = screen.getByRole('spinbutton', { name: /Dose number within series/i });
+    await user.clear(doseField);
+    await user.type(doseField, '1');
+
+    // Try to submit
+    await user.click(screen.getByRole('button', { name: /Save/i }));
+
+    // Should NOT save — duplicate blocked
+    expect(mockSavePatientImmunization).not.toHaveBeenCalled();
+
+    // Should show warning snackbar
+    expect(showSnackbar).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'warning',
+      }),
     );
   });
 });
