@@ -36,7 +36,8 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
   const isTablet = useLayoutType() === 'tablet';
   const { t } = useTranslation();
   const { immunizationsConceptSet } = useImmunizationsConceptSet(config);
-  const { data: existingImmunizations, mutate } = useImmunizations(patientUuid);
+
+  const { data: existingImmunizations, isLoading: isLoadingImmunizations, mutate } = useImmunizations(patientUuid);
 
   const [immunizationToEditMeta, setImmunizationToEditMeta] = useState<{
     immunizationObsUuid: string;
@@ -53,7 +54,6 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
         })
         .refine(
           (date) => {
-            // Normalize both dates to start of day in local timezone
             const inputDate = dayjs(date).startOf('day');
             const today = dayjs().startOf('day');
             return inputDate.isSame(today) || inputDate.isBefore(today);
@@ -62,7 +62,6 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
             message: t('vaccinationDateCannotBeInTheFuture', 'Vaccination date cannot be in the future'),
           },
         ),
-      // null means unset; when provided, must be an integer ≥ 1
       doseNumber: z.union([z.number({ coerce: true }).int().min(1), z.null()]).optional(),
       note: z.string().trim().max(255).optional(),
       nextDoseDate: z.date().nullable().optional(),
@@ -92,6 +91,7 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
     control,
     handleSubmit,
     reset,
+    setError,
     formState: { errors, isDirty, isSubmitting },
     watch,
   } = formProps;
@@ -124,6 +124,27 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
 
   const onSubmit = useCallback(
     async (data: ImmunizationFormInputData) => {
+      const isDuplicate = existingImmunizations?.some((group) => {
+        if (group.vaccineUuid !== data.vaccineUuid) return false;
+        return group.existingDoses.some(
+          (dose) =>
+            dose.doseNumber != null &&
+            data.doseNumber != null &&
+            Number(dose.doseNumber) === Number(data.doseNumber) &&
+            dose.immunizationObsUuid !== immunizationToEditMeta?.immunizationObsUuid,
+        );
+      });
+
+      if (isDuplicate) {
+        setError('doseNumber', {
+          type: 'manual',
+          message: t('duplicateDoseError', 'Dose {{dose}} has already been recorded for this vaccine', {
+            dose: data.doseNumber,
+          }),
+        });
+        return;
+      }
+
       try {
         const {
           vaccineUuid,
@@ -184,47 +205,18 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
       visitContext?.uuid,
       immunizationToEditMeta,
       immunizationsConceptSet,
+      existingImmunizations,
+      setError,
       closeWorkspace,
       t,
       mutate,
     ],
   );
 
-  const wrappedSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-
-      const data = formProps.getValues();
-
-      const isDuplicate = existingImmunizations?.some((group) => {
-        if (group.vaccineUuid !== data.vaccineUuid) return false;
-        return group.existingDoses.some(
-          (dose) =>
-            Number(dose.doseNumber) === Number(data.doseNumber) &&
-            dose.immunizationObsUuid !== immunizationToEditMeta?.immunizationObsUuid,
-        );
-      });
-
-      if (isDuplicate) {
-        showSnackbar({
-          title: t('duplicateDoseError', 'Dose {{dose}} has already been recorded for this vaccine', {
-            dose: data.doseNumber,
-          }),
-          kind: 'warning',
-          isLowContrast: true,
-        });
-        return;
-      }
-
-      handleSubmit(onSubmit)(e);
-    },
-    [existingImmunizations, immunizationToEditMeta, formProps, handleSubmit, onSubmit, t],
-  );
-
   return (
     <Workspace2 title={t('immunizationWorkspaceTitle', 'Immunization')} hasUnsavedChanges={isDirty}>
       <FormProvider {...formProps}>
-        <Form className={styles.form} onSubmit={wrappedSubmit}>
+        <Form className={styles.form} onSubmit={handleSubmit(onSubmit)}>
           <Stack gap={5} className={styles.container}>
             <ResponsiveWrapper>
               <Controller
@@ -360,7 +352,12 @@ const ImmunizationsForm: React.FC<PatientWorkspace2DefinitionProps<{}, {}>> = ({
             <Button className={styles.button} kind="secondary" onClick={() => closeWorkspace()}>
               {getCoreTranslation('cancel')}
             </Button>
-            <Button className={styles.button} kind="primary" disabled={isSubmitting} type="submit">
+            <Button
+              className={styles.button}
+              kind="primary"
+              disabled={isSubmitting || isLoadingImmunizations}
+              type="submit"
+            >
               {isSubmitting ? (
                 <InlineLoading className={styles.spinner} description={t('saving', 'Saving') + '...'} />
               ) : (
