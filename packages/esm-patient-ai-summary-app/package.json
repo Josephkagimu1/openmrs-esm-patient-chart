@@ -1,0 +1,26 @@
+{
+  "name": "@openmrs/esm-patient-ai-summary-app",
+  "version": "1.0.0",
+  "license": "MPL-2.0",
+  "description": "AI-powered patient summary widget for OpenMRS O3",
+  "browser": "dist/openmrs-esm-patient-ai-summary-app.js",
+  "main": "src/index.ts",
+  "source": true,
+  "scripts": {
+    "start": "openmrs develop",
+    "build": "rspack --mode=production",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@carbon/react": "^1.83.0",
+    "@openmrs/esm-patient-common-lib": "next"
+  },
+  "peerDependencies": {
+    "@openmrs/esm-framework": "*",
+    "react": "18.x",
+    "react-i18next": "16.x"
+  },
+  "devDependencies": {
+    "openmrs": "next"
+  }
+}

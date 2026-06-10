@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.openmrs.org/routes.schema.json",
+  "backendDependencies": {
+    "fhir2": ">=1.2",
+    "webservices.rest": ">=2.2.0"
+  },
+  "extensions": [
+    {
+      "name": "ai-summary-widget",
+      "slot": "patient-chart-summary-dashboard-slot",
+      "component": "aiSummaryOverview",
+      "order": 10,
+      "meta": {
+        "columnSpan": 4
+      }
+    }
+  ]
+}
+
