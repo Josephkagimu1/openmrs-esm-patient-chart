@@ -23,11 +23,11 @@ describe('AiSummaryOverview', () => {
       patient: null,
       isLoading: false,
       error: null,
-    });
+    } as any);
   });
 
   it('renders the Generate Summary button', () => {
-    mockedOpenmrsFetch.mockResolvedValue({ data: {} });
+    mockedOpenmrsFetch.mockResolvedValue({ data: {} } as any);
     render(<AiSummaryOverview />);
     expect(screen.getByText('AI Summary')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /generate summary/i })).toBeInTheDocument();
@@ -40,7 +40,7 @@ describe('AiSummaryOverview', () => {
         answer: 'Patient has diabetes [1] and hypertension [2].',
         disclaimer: 'AI-generated content.',
       },
-    });
+    } as any);
 
     render(<AiSummaryOverview />);
 
@@ -74,7 +74,7 @@ describe('AiSummaryOverview', () => {
     const user = userEvent.setup();
     mockedOpenmrsFetch.mockResolvedValue({
       data: { answer: 'Has diabetes [1] and takes metformin [4, 5, 6].', disclaimer: null },
-    });
+    } as any);
 
     render(<AiSummaryOverview />);
 
